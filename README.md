@@ -6,6 +6,7 @@ Geospatial machine learning that maps **recurrent flood-prone zones** in Chennai
 > **Not a forecast.** This is a research prototype built on historical data. It ranks areas by how often they flooded in the past. It does not predict upcoming floods and must not be used as a warning.
 
 ![Map demo](docs/demo.png)
+![Dashboard](docs/dashboard.png)
 
 ## What it does
 - Splits core Chennai into 500 m cells and extracts terrain (Copernicus DEM) and land-cover (ESA WorldCover) features.
@@ -46,13 +47,46 @@ Intervals are 95% block-bootstrap (2,000 resamples of the 25 spatial blocks, not
 - **Spatial autocorrelation (Moran's I):** labels 0.50, residuals 0.33 (both p = 0.001). Neighbouring cells are not independent, which is why spatial CV is the headline, and the remaining residual structure shows what terrain and land cover cannot explain (drainage, drain capacity).
 - **Record agreement:** the 2005 and 2015 footprints are negatively correlated (phi -0.22, Jaccard 0.18), which caps what any model can learn from them.
 
+### Classification metrics (`scripts/07_threshold_metrics.py`)
+Spatial-CV predictions, decision rule score >= 0.5 fixed in advance (nothing tuned on the evaluation folds). Always predicting the majority class gives accuracy 0.61.
+
+| Model | Accuracy | Balanced acc. | Precision | Recall | F1 | MCC |
+|---|---|---|---|---|---|---|
+| Elevation only (LR) | 0.65 | 0.66 | 0.54 | 0.68 | 0.60 | 0.31 |
+| Logistic Regression | 0.72 | 0.73 | 0.62 | 0.75 | 0.68 | 0.45 |
+| Random Forest | 0.73 | 0.72 | 0.65 | 0.67 | 0.66 | 0.44 |
+| **XGBoost (final)** | **0.74** | 0.73 | 0.65 | 0.69 | 0.67 | 0.46 |
+
+As a screening rule (flag the top 20% of cells): XGBoost precision 0.79, recall 0.41, F1 0.54. Full tables and confusion matrices: `reports/threshold_metrics.md`.
+
 ![ROC and precision with bootstrap band](reports/figures/roc_pr_bootstrap.png)
 ![Enrichment by risk class](reports/figures/enrichment.png)
 
+![XGBoost confusion matrix](reports/figures/confusion_matrix_xgb.png)
 ![Susceptibility map](reports/figures/susceptibility_map.png)
 ![SHAP summary](reports/figures/shap_summary.png)
 
 SHAP: low relative elevation and low absolute elevation raise the score most. High wetland, tree and open-water cover lowers it, which is probably a labelling artefact (satellite flood maps tend to exclude permanent water and vegetated areas), not evidence that wetlands do not flood. SHAP describes the model, not physical causation.
+
+## Model comparison and selection
+Four models were compared on identical spatial folds: an elevation-only baseline, logistic regression, random forest and XGBoost.
+
+- **Every multi-feature model beats the baseline** (ROC-AUC 0.81 to 0.82 vs 0.71; accuracy 0.72 to 0.74 vs 0.65), so terrain and land cover add real signal.
+- **The three multi-feature models are statistically indistinguishable.** Their ROC-AUC differs by 0.01 against a fold-to-fold spread of about 0.05, so no model is claimed to be "best" on accuracy.
+- **XGBoost was chosen as the final model for practical reasons, not because it won:** it gives exact per-cell tree-SHAP contributions that the API serves on every request, it handles the skewed, correlated land-cover features without scaling, it serialises to a small file, and its accuracy (0.74), F1 (0.67) and MCC (0.46) are the best or tied-best of the four. Random forest is a fully acceptable alternative and has the highest ROC-AUC (0.82).
+- **Logistic regression is the interpretable fallback** and has the highest recall (0.75) at the 0.5 threshold.
+- None of the models transfers across events (see the leave-one-event-out table), which is why the project presents a flood-proneness map and not a predictor.
+
+## Datasets
+| Dataset | Source | Role |
+|---|---|---|
+| Flood extent 2005 (235 polygons), 2015 (4,001 polygons) | IRS / NRSC satellite maps, GCC flood DSS via OpenCity | labels |
+| Water-stagnation points 2015 (753), flood hotspots 2020 (53) | Greater Chennai Corporation | labels |
+| Daily station rainfall 1993 to 2023 (21,416 rows) | GCC / TNDMA via OpenCity | reference rainfall events |
+| Elevation | Copernicus DEM GLO-30 | 7 terrain and proximity features |
+| Land cover | ESA WorldCover 2021 | 8 land-cover fraction features |
+
+Details, licences and label rules: [`docs/METHODOLOGY.md`](docs/METHODOLOGY.md).
 
 ## How it works
 ```mermaid
@@ -75,6 +109,7 @@ flowchart LR
 | 4 | `scripts/04_train_models.py` | models, spatial CV, SHAP, map, `reports/model_report.md` |
 | 5 | `scripts/05_export_api_data.py` | self-contained data for the API |
 | 6 | `scripts/06_scientific_analysis.py` | bootstrap intervals, enrichment, Moran's I, record agreement in `reports/scientific_analysis.md`, and `backend/data/metrics.json` for the dashboard |
+| 7 | `scripts/07_threshold_metrics.py` | accuracy, precision, recall, F1, MCC and confusion matrices for all four models, `reports/threshold_metrics.md` |
 
 ## Run it
 ```bash
@@ -82,7 +117,7 @@ python3.12 -m venv .venv && source .venv/bin/activate
 pip install --only-binary=:all: -r requirements.txt
 
 # download flood KMLs and the rainfall CSV into data/raw/ (see data/README.md), then:
-for s in 00_fetch_terrain_landcover 01_inventory 02_build_grid_labels 03_extract_features 04_train_models 05_export_api_data 06_scientific_analysis; do
+for s in 00_fetch_terrain_landcover 01_inventory 02_build_grid_labels 03_extract_features 04_train_models 05_export_api_data 06_scientific_analysis 07_threshold_metrics; do
   python scripts/$s.py || break
 done
 
