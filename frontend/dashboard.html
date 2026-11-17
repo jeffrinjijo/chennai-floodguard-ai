@@ -45,7 +45,7 @@ svg text{font-family:inherit}
 .honest ul{margin:6px 0 0;padding-left:18px;color:#d5def0}
 .honest li{margin:4px 0}
 .drop{animation:fall linear infinite}
-@keyframes fall{0%{transform:translateY(0);opacity:0}10%{opacity:.9}100%{transform:translateY(120px);opacity:0}}
+@keyframes fall{0%{transform:translateY(0);opacity:0}10%{opacity:.9}100%{transform:translateY(100px);opacity:0}}
 @keyframes drift{0%,100%{transform:translateX(-6px)}50%{transform:translateX(6px)}}
 .cloud{animation:drift 9s ease-in-out infinite}
 @media(prefers-reduced-motion:reduce){.drop,.cloud{animation:none}}
@@ -81,11 +81,11 @@ footer{position:fixed;left:0;right:0;bottom:0;background:#0a1020;border-top:1px 
     <radialGradient id="cg" cx="50%" cy="35%" r="70%"><stop offset="0" stop-color="#eaf3ff"/><stop offset=".55" stop-color="#8fa6c8"/><stop offset="1" stop-color="#3b4b6b"/></radialGradient>
     <filter id="glow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
    </defs>
-   <g class="cloud" filter="url(#glow)">
+   <g transform="translate(0,20)"><g class="cloud" filter="url(#glow)">
     <ellipse cx="320" cy="92" rx="170" ry="52" fill="url(#cg)"/>
     <circle cx="240" cy="78" r="52" fill="url(#cg)"/><circle cx="320" cy="56" r="62" fill="url(#cg)"/><circle cx="400" cy="76" r="50" fill="url(#cg)"/>
     <ellipse cx="320" cy="110" rx="150" ry="26" fill="#2f3d5c" opacity=".55"/>
-   </g>
+   </g></g>
    <g id="drops"></g>
    <line x1="40" y1="262" x2="600" y2="262" stroke="#4fd1ff" stroke-opacity=".35"/>
    <text x="40" y="280" class="lbl" id="sky-cap"></text>
@@ -149,10 +149,11 @@ function drawRain(mm){
   const inten=Math.min(mm/205,1), n=mm<=0?0:Math.round(8+inten*52);
   const col=mm>=204.5?"#ff8aa0":mm>=115.6?"#7fdcff":"#4fd1ff";
   for(let i=0;i<n;i++){
-    const x=190+((i*97)%260)+(i%3)*6, y0=122+((i*31)%24), len=10+inten*16, dur=(0.9-inten*0.45)+((i*13)%10)/25, delay=-((i*17)%20)/20*dur;
+    const x=190+((i*97)%260)+(i%3)*6, y0=146+((i*31)%24), len=10+inten*16, dur=(0.9-inten*0.45)+((i*13)%10)/25, delay=-((i*17)%20)/20*dur;
     const d=el("line",{x1:x,y1:y0,x2:x-2,y2:y0+len,stroke:col,"stroke-width":1.5+inten*1.2,"stroke-linecap":"round",class:"drop",style:`animation-duration:${dur}s;animation-delay:${delay}s;opacity:.0`},g);
   }
-  $("sky-cap").textContent=mm<=0?"No rain in the selected scenario":"Drop density follows the selected 24 h rainfall";
+  if(mm<=0){const tx=el("text",{x:320,y:222,"text-anchor":"middle",style:"fill:#2ee6a6;font-size:15px;font-weight:600"},g,"No significant rain in this scenario");}
+  $("sky-cap").textContent=mm<=0?"Pick a day or a rainfall level below to preview the rain":"Drop density follows the selected 24 h rainfall";
 }
 
 // ---- charts ----
@@ -178,11 +179,11 @@ function barsFlag(counts,flagged,total){
     el("text",{x:84+w2,y:y+12,class:"val"},s,fmt(c)+(on?"  flagged":""));}
 }
 function barsEvents(evs,pk){
-  const s=$("c-ev");clear(s);const W=440,H=250,L=38,B=44,T=10,mx=300,bw=54,gap=(W-L-10-evs.length*bw)/(evs.length-1||1);
-  [0,100,200,300].forEach(v=>{const y=H-B-(H-B-T)*v/mx;el("line",{x1:L,y1:y,x2:W-6,y2:y,stroke:"#18264a"},s);el("text",{x:L-6,y,"text-anchor":"end",class:"lbl",dy:4},s,String(v));});
-  [[64.5,"heavy"],[115.6,"very heavy"],[204.5,"extremely heavy"]].forEach(([v,n])=>{const y=H-B-(H-B-T)*v/mx;
-    el("line",{x1:L,y1:y,x2:W-6,y2:y,stroke:"#ffb547","stroke-dasharray":"4 3","stroke-opacity":.7},s);
-    el("text",{x:L+4,y:y-3,"text-anchor":"start",class:"lbl",style:"fill:#ffb547;paint-order:stroke;stroke:#0b1226;stroke-width:3px"},s,n+" "+v);});
+  const s=$("c-ev");clear(s);const W=440,H=250,L=38,B=44,T=10,mx=300,bw=54,R=96,gap=(W-L-R-evs.length*bw)/(evs.length-1||1);
+  [0,100,200,300].forEach(v=>{const y=H-B-(H-B-T)*v/mx;el("line",{x1:L,y1:y,x2:W-R+4,y2:y,stroke:"#18264a"},s);el("text",{x:L-6,y,"text-anchor":"end",class:"lbl",dy:4},s,String(v));});
+  [[64.5,"heavy"],[115.6,"v. heavy"],[204.5,"extreme"]].forEach(([v,n])=>{const y=H-B-(H-B-T)*v/mx;
+    el("line",{x1:L,y1:y,x2:W-R+4,y2:y,stroke:"#ffb547","stroke-dasharray":"4 3","stroke-opacity":.7},s);
+    el("text",{x:W-R+8,y:y+4,"text-anchor":"start",class:"lbl",style:"fill:#ffb547"},s,n+" "+v);});
   evs.forEach((e,i)=>{const x=L+i*(bw+gap),h=(H-B-T)*e.rain_peak_day_mm/mx;
     el("rect",{x,y:H-B-h,width:bw,height:h,rx:4,fill:"#4fd1ff",opacity:.9},s);
     el("text",{x:x+bw/2,y:H-B-h-4,"text-anchor":"middle",class:"val"},s,String(e.rain_peak_day_mm));
