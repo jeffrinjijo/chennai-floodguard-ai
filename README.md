@@ -91,6 +91,8 @@ uvicorn backend.main:app --reload          # http://127.0.0.1:8000
 ```
 Docker: `docker build -t floodguard . && docker run -p 8000:8000 floodguard`
 
+Deploy: `render.yaml` is a Render Blueprint (free Docker web service, health check `/health`). The service needs no secrets; the rainfall outlook calls the public Open-Meteo API at request time and degrades gracefully if it is unreachable.
+
 API: `GET /predict?lat=13.07&lon=80.26` returns score, risk class, past flood events and the five main drivers. `GET /scenario?rain_mm_24h=120` returns the category and flagged classes; `GET /rain-reference` lists past event rainfall. `GET /outlook` fetches the next 3 days of forecast rainfall for central Chennai from Open-Meteo (cached 30 min, returns 503 if the service is unreachable) and passes each day through the same screening rule. Also `GET /dashboard` is a dark analytics view (rain-cloud hero, forecast days, validation gauges and charts) fed by `GET /stats`, which returns the measured metrics from `backend/data/metrics.json`. Also `GET /cells.geojson`, `GET /health`.
 
 ## Documentation

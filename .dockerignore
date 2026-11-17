@@ -4,3 +4,8 @@ data/interim
 data/processed
 notebooks
 __pycache__
+.git
+reports
+docs
+tests
+scripts

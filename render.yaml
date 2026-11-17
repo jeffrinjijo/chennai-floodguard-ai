@@ -1,0 +1,8 @@
+# Render Blueprint: New + > Blueprint > pick this repo. Free plan sleeps after ~15 min idle (first load is slow).
+services:
+  - type: web
+    name: chennai-floodguard-ai
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    autoDeploy: true
