@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Chennai FloodGuard AI</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+ html,body{height:100%;margin:0;font-family:system-ui,sans-serif}
+ #map{position:absolute;inset:0}
+ .panel{position:absolute;z-index:1000;background:#fff;border-radius:10px;box-shadow:0 2px 12px #0003;padding:12px 14px;font-size:14px}
+ #info{top:12px;right:12px;width:310px;max-height:75vh;overflow:auto}
+ #title{top:12px;left:56px;max-width:330px}
+ #legend{bottom:48px;left:12px}
+ #warn{bottom:0;left:0;right:0;border-radius:0;font-size:12px;text-align:center;background:#fff8e1}
+ .sw{display:inline-block;width:14px;height:14px;margin-right:6px;vertical-align:middle;border-radius:2px}
+ h1{font-size:17px;margin:0 0 4px} small{color:#555}
+ .bar{height:8px;border-radius:4px;background:#ddd;margin:2px 0 8px}
+ .bar i{display:block;height:100%;border-radius:4px}
+</style></head><body>
+<div id="map"></div>
+<div class="panel" id="title"><h1>Chennai FloodGuard AI</h1>
+ <small>Recurrent flood-prone zones from 2005 / 2015 / 2020 flood records, terrain and land cover. Click a cell.</small></div>
+<div class="panel" id="info"><b>Click a cell</b><br><small>to see its score, flood history and main drivers.</small></div>
+<div class="panel" id="legend"><b>Relative flood-proneness</b><br></div>
+<div class="panel" id="warn">Experimental research demo from public historical data. Not a flood forecast or warning.</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const COL={1:"#ffffb2",2:"#fecc5c",3:"#fd8d3c",4:"#e31a1c",5:"#800026"};
+const NAME={1:"very low",2:"low",3:"moderate",4:"high",5:"very high"};
+const map=L.map("map").setView([13.05,80.23],11);
+L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:18,attribution:"&copy; OpenStreetMap contributors"}).addTo(map);
+document.getElementById("legend").innerHTML+=[1,2,3,4,5].map(k=>`<div><span class="sw" style="background:${COL[k]}"></span>${NAME[k]}</div>`).join("");
+let sel=null;
+fetch("/cells.geojson").then(r=>r.json()).then(g=>{
+ const layer=L.geoJSON(g,{style:f=>({fillColor:COL[f.properties.risk_class],fillOpacity:.6,color:"#333",weight:.2}),
+  onEachFeature:(f,l)=>l.on("click",async e=>{
+    if(sel)layer.resetStyle(sel); sel=l; l.setStyle({color:"#000",weight:2});
+    const c=e.latlng, el=document.getElementById("info");
+    el.innerHTML="Loading...";
+    const r=await fetch(`/predict?lat=${c.lat}&lon=${c.lng}`);
+    if(!r.ok){el.innerHTML="Outside study area.";return;}
+    const d=await r.json();
+    const mx=Math.max(...d.main_drivers.map(x=>Math.abs(x.contribution)),.01);
+    el.innerHTML=`<b>${d.risk} flood-proneness</b> (class ${d.risk_class}/5)<br>
+     <small>relative score ${d.score}</small>
+     <p>Flooded in past records: <b>${d.flooded_in.length?d.flooded_in.join(", "):"none recorded"}</b></p>
+     <b>Main drivers</b>`+d.main_drivers.map(x=>`<div style="margin-top:6px"><small>${x.feature} = ${x.value} &mdash; ${x.effect}</small>
+     <div class="bar"><i style="width:${100*Math.abs(x.contribution)/mx}%;background:${x.contribution>0?"#e31a1c":"#2c7fb8"}"></i></div></div>`).join("")
+     +`<small>${d.drivers_note}</small>`;
+  })}).addTo(map);
+ map.fitBounds(layer.getBounds());
+});
+</script></body></html>

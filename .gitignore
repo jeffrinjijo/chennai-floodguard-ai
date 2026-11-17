@@ -1,0 +1,19 @@
+__pycache__/
+*.pyc
+.venv/
+.env
+.ipynb_checkpoints/
+mlruns/
+node_modules/
+frontend/dist/
+
+# raw & large data are not committed
+data/raw/**
+data/interim/**
+data/processed/**
+data/external/**
+!data/**/.gitkeep
+*.tif
+*.tiff
+*.parquet
+*.kml

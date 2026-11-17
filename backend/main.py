@@ -1,0 +1,55 @@
+"""FastAPI app: serves the map page and a small JSON API.
+
+Run locally:  uvicorn backend.main:app --reload     then open http://127.0.0.1:8000
+"""
+from pathlib import Path
+
+import xgboost as xgb
+from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import FileResponse
+
+from backend import service
+
+ROOT = Path(__file__).resolve().parents[1]
+DATA = Path(__file__).parent / "data"
+
+app = FastAPI(title="Chennai FloodGuard AI", version="0.1.0",
+              description=service.DISCLAIMER)
+
+CELLS = service.load_cells(DATA / "cells.csv")
+BOOSTER = xgb.Booster()
+BOOSTER.load_model(str(DATA / "model.json"))
+FEATS = list(BOOSTER.feature_names)
+GEOJSON = service.build_geojson(CELLS)          # built once at startup
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok", "cells": len(CELLS), "features": FEATS}
+
+
+@app.get("/cells.geojson")
+def cells_geojson():
+    return GEOJSON
+
+
+@app.get("/predict")
+def predict(lat: float = Query(..., ge=-90, le=90), lon: float = Query(..., ge=-180, le=180)):
+    row, dist = service.nearest_cell(CELLS, lat, lon)
+    if row is None:
+        raise HTTPException(404, f"Point is {dist:.0f} m from the nearest study cell - outside the study area "
+                                 "(core Chennai land, 500 m cells).")
+    return {
+        "cell_id": int(row.cell_id), "lat": float(row.lat), "lon": float(row.lon),
+        "score": round(float(row.score), 3), "risk_class": int(row.risk_class),
+        "risk": service.RISK_LABELS[int(row.risk_class)],
+        "flooded_in": service.history(row),
+        "main_drivers": service.top_drivers(BOOSTER, row, FEATS),
+        "drivers_note": "Contributions come from the final model; the score is the out-of-sample estimate.",
+        "disclaimer": service.DISCLAIMER,
+    }
+
+
+@app.get("/")
+def index():
+    return FileResponse(ROOT / "frontend/index.html")
