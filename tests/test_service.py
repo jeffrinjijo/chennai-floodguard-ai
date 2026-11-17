@@ -55,3 +55,41 @@ def test_flagged_count_grows_with_rain(cells):
 def test_rain_reference_has_the_four_events():
     assert len(service.RAIN_REFERENCE) == 4
     assert all(e["rain_72h_mm"] > 250 for e in service.RAIN_REFERENCE)
+
+
+# ---- live outlook (no network: payload and fetcher are mocked) ----
+MOCK = {"daily": {"time": ["2026-11-18", "2026-11-19", "2026-11-20", "2026-11-21"],
+                  "precipitation_sum": [3.2, 130.04, None, 70.0]}}
+
+
+def test_parse_outlook_categories_and_nulls():
+    days = service.parse_outlook(MOCK)
+    assert [d["date"] for d in days] == ["2026-11-18", "2026-11-19", "2026-11-21"]   # null day skipped
+    assert days[0]["category"] == "below heavy" and days[0]["flagged_classes"] == []
+    assert days[1]["category"] == "very heavy" and days[1]["rain_mm_24h"] == 130.0
+    assert days[2]["category"] == "heavy"
+
+
+def test_parse_outlook_empty():
+    assert service.parse_outlook({}) == [] and service.parse_outlook({"daily": {}}) == []
+
+
+def test_fetch_outlook_peak_and_cache():
+    service._outlook_cache.update(t=0.0, data=None)
+    calls = []
+    def fake(url):
+        calls.append(url); return MOCK
+    d1 = service.fetch_outlook(http_get=fake, now=1000.0)
+    d2 = service.fetch_outlook(http_get=fake, now=1000.0 + 60)          # inside TTL: served from cache
+    assert d1["peak"]["date"] == "2026-11-19" and d2 is d1 and len(calls) == 1
+    assert "latitude=13.08" in calls[0] and "precipitation_sum" in calls[0]
+    service.fetch_outlook(http_get=fake, now=1000.0 + service.OUTLOOK_TTL_S + 1)
+    assert len(calls) == 2                                              # expired: refetched
+    service._outlook_cache.update(t=0.0, data=None)
+
+
+def test_fetch_outlook_rejects_empty_payload():
+    service._outlook_cache.update(t=0.0, data=None)
+    import pytest
+    with pytest.raises(ValueError):
+        service.fetch_outlook(http_get=lambda u: {"daily": {"time": [], "precipitation_sum": []}}, now=5.0)

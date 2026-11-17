@@ -22,7 +22,7 @@
 </style></head><body>
 <div id="map"></div>
 <div class="panel" id="title"><h1>Chennai FloodGuard AI</h1>
- <small>Recurrent flood-prone zones from 2005 / 2015 / 2020 flood records, terrain and land cover. Click a cell.</small></div>
+ <small>Recurrent flood-prone zones from 2005 / 2015 / 2020 flood records, terrain and land cover. Click a cell. &middot; <a href="/dashboard">Open dashboard &rarr;</a></small></div>
 <div class="panel" id="info"><b>Click a cell</b><br><small>to see its score, flood history and main drivers.</small></div>
 <div class="panel" id="legend"><b>Relative flood-proneness</b><br></div>
 <div class="panel" id="scen">
@@ -31,6 +31,7 @@
  <input id="rain" type="range" min="0" max="300" step="5" value="0">
  <div><button data-mm="0">Off</button><button data-mm="65">Heavy 65</button><button data-mm="120">Very heavy 120</button><button data-mm="205">Extremely heavy 205</button><button data-mm="285">2015 peak ~285</button></div>
  <div id="scen-out" style="margin-top:6px"><small>Move the slider to highlight the zones worth watching.</small></div>
+ <div id="outlook" style="margin-top:6px"><small>Loading rainfall outlook&hellip;</small></div>
  <div id="ref" style="margin-top:6px"></div>
 </div>
 <div class="panel" id="warn">Experimental research demo from public historical data. Not a flood forecast or warning. Check IMD / Greater Chennai Corporation for official alerts.</div>
@@ -87,4 +88,12 @@ fetch("/rain-reference").then(r=>r.json()).then(d=>{
   document.getElementById("ref").innerHTML="<small><b>Biggest 3-day rain events on record</b> (24 h peak): "+
    d.events.map(e=>`${e.event.replace(/ \(.*\)/,"")} ${e.rain_72h_mm} mm (${e.rain_peak_day_mm})`).join(" &middot; ")+"<br>"+d.note+"</small>";
 });
+// ---- live 3-day rainfall outlook (external forecast; screening only) ----
+fetch("/outlook").then(r=>{ if(!r.ok) throw 0; return r.json(); }).then(d=>{
+  const el=document.getElementById("outlook");
+  el.innerHTML="<small><b>Forecast rain, central Chennai</b> (click a day to preview its zones)</small><div>"+
+    d.days.map(x=>`<button data-mm="${Math.round(x.rain_mm_24h)}" title="${x.category}">${x.date.slice(5)}: ${x.rain_mm_24h} mm</button>`).join("")+
+    `</div><small>${d.source}. ${d.note}</small>`;
+  el.querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>applyScenario(+b.dataset.mm)));
+}).catch(()=>{ document.getElementById("outlook").innerHTML="<small>Live rainfall outlook unavailable right now. The slider still works.</small>"; });
 </script></body></html>

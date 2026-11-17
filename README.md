@@ -12,7 +12,7 @@ Geospatial machine learning that maps **recurrent flood-prone zones** in Chennai
 - Builds a "recurrent flood-proneness" label from three flood records (2005, 2015, 2020).
 - Trains and compares four models with **spatial block cross-validation** and explains the best with SHAP.
 - Serves scores and the main drivers per cell through a FastAPI service and a click-to-inspect map.
-- Includes a **rainfall scenario screen**: a slider on IMD 24 h rainfall categories (heavy 64.5, very heavy 115.6, extremely heavy 204.5 mm) that highlights which susceptibility classes to watch. It is a transparent threshold rule, not a trained rainfall-to-flood model, and is labelled as such in the app.
+- Includes a **rainfall scenario screen**: a slider on IMD 24 h rainfall categories (heavy 64.5, very heavy 115.6, extremely heavy 204.5 mm) that highlights which susceptibility classes to watch. It is a transparent threshold rule, not a trained rainfall-to-flood model, and is labelled as such in the app. A live 3-day rainfall outlook from a public forecast service can feed the same rule.
 
 ## Results
 Task: rank land cells by recurrent flood-proneness. Positive = flooded in 2+ events (281 cells), negative = never flooded in these records (440), flooded once = excluded as ambiguous. 5-fold spatial block CV on 5 km blocks. Chance PR-AUC = 0.39.
@@ -74,7 +74,7 @@ flowchart LR
 | 3 | `scripts/03_extract_features.py` | features, land mask, single-feature signal check |
 | 4 | `scripts/04_train_models.py` | models, spatial CV, SHAP, map, `reports/model_report.md` |
 | 5 | `scripts/05_export_api_data.py` | self-contained data for the API |
-| 6 | `scripts/06_scientific_analysis.py` | bootstrap intervals, enrichment, Moran's I, record agreement in `reports/scientific_analysis.md` |
+| 6 | `scripts/06_scientific_analysis.py` | bootstrap intervals, enrichment, Moran's I, record agreement in `reports/scientific_analysis.md`, and `backend/data/metrics.json` for the dashboard |
 
 ## Run it
 ```bash
@@ -91,7 +91,7 @@ uvicorn backend.main:app --reload          # http://127.0.0.1:8000
 ```
 Docker: `docker build -t floodguard . && docker run -p 8000:8000 floodguard`
 
-API: `GET /predict?lat=13.07&lon=80.26` returns score, risk class, past flood events and the five main drivers. `GET /scenario?rain_mm_24h=120` returns the category and flagged classes; `GET /rain-reference` lists past event rainfall. Also `GET /cells.geojson`, `GET /health`.
+API: `GET /predict?lat=13.07&lon=80.26` returns score, risk class, past flood events and the five main drivers. `GET /scenario?rain_mm_24h=120` returns the category and flagged classes; `GET /rain-reference` lists past event rainfall. `GET /outlook` fetches the next 3 days of forecast rainfall for central Chennai from Open-Meteo (cached 30 min, returns 503 if the service is unreachable) and passes each day through the same screening rule. Also `GET /dashboard` is a dark analytics view (rain-cloud hero, forecast days, validation gauges and charts) fed by `GET /stats`, which returns the measured metrics from `backend/data/metrics.json`. Also `GET /cells.geojson`, `GET /health`.
 
 ## Documentation
 - [`docs/METHODOLOGY.md`](docs/METHODOLOGY.md): study design, label construction, features, validation, threats to validity.
@@ -108,10 +108,11 @@ API: `GET /predict?lat=13.07&lon=80.26` returns score, risk class, past flood ev
 - Coastal cells contain zero-elevation sea pixels, so `elev_min` partly acts as a coastline flag. Its SHAP direction (a low `elev_min` lowers the score) reflects that artefact, not a physical effect.
 
 ## Next steps
-Flow accumulation and height-above-drainage features, a drainage map, calibrated uncertainty per cell, more flood events, and a trained rainfall-to-flood model once event labels are consistent, and a live rainfall outlook feeding the scenario screen.
+Flow accumulation and height-above-drainage features, a drainage map, calibrated uncertainty per cell, more flood events, and a trained rainfall-to-flood model once event labels are consistent, and an evaluation of whether forecast rainfall categories line up with past flood events.
 
 ## Data and credits
 - Flood extents, stagnation points, hotspots and daily rainfall: Greater Chennai Corporation / TNDMA, via [OpenCity](https://data.opencity.in) (public domain).
 - Elevation: Copernicus DEM GLO-30 (contains modified Copernicus data).
 - Land cover: ESA WorldCover 2021 v200 (CC BY 4.0, (c) ESA WorldCover project / contains modified Copernicus Sentinel data).
 - Basemap: (c) OpenStreetMap contributors.
+- Rainfall outlook: [Open-Meteo](https://open-meteo.com) forecast API (free for non-commercial use; check their terms before commercial use).

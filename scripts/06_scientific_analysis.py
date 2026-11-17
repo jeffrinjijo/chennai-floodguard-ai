@@ -225,3 +225,30 @@ R += ["", f"AUC of single-event cells vs never-flooded cells: {amb_vs_neg:.2f}. 
 R.append(desc.round(2).to_markdown() if hasattr(desc, "to_markdown") else desc.round(2).to_string())
 (ROOT / "reports/scientific_analysis.md").write_text("\n".join(R), encoding="utf-8")
 print("\n".join(R))
+
+# ---------- machine-readable metrics for the dashboard ----------
+import json
+import re
+
+loeo = []
+mr = (ROOT / "reports/model_report.md").read_text(encoding="utf-8")
+for m in re.finditer(r"^\| (20\d\d) \| (Elevation only \(LR\)|XGBoost) \| ([\d.]+) \| ([\d.]+) \| ([\d.]+) \|", mr, re.M):
+    loeo.append({"event": m.group(1), "model": m.group(2), "prevalence": float(m.group(3)),
+                 "roc_auc": float(m.group(4)), "pr_auc": float(m.group(5))})
+metrics = {
+    "labelled_cells": int(len(L)), "recurrent_cells": int(y.sum()), "never_cells": int((1 - y).sum()),
+    "ambiguous_cells": int((s.n_ev == 1).sum()), "land_cells": int(len(s)), "blocks": len(keys), "prevalence": round(float(prev), 3),
+    "roc_auc": {"xgb": round(auc(y, p), 3), "xgb_ci": [round(v, 3) for v in ci(boot["XGBoost (out-of-fold)"]["auc"])],
+                "elev": round(auc(y, base_rule), 3), "elev_ci": [round(v, 3) for v in ci(boot["Elevation rule (lower = riskier)"]["auc"])],
+                "gain": round(float(diff.mean()), 3), "gain_ci": [round(v, 3) for v in ci(diff)]},
+    "pr_auc": {"xgb": round(ap(y, p), 3), "elev": round(ap(y, base_rule), 3)},
+    "class_rates": [{"risk_class": int(k), "n": int(r.n), "recurrent": int(r.recurrent), "rate": round(float(r.rate), 3)} for k, r in cls.iterrows()],
+    "budget": [{"share": fr, "precision": round(float(pr), 3), "recall": round(float(rc), 3), "lift": round(float(lf), 2)} for fr, k, pr, rc, lf in budget_rows],
+    "mean_score_by_events": {str(int(k)): round(float(r["mean"]), 3) for k, r in mono.iterrows()},
+    "moran": {"label": round(I_label, 3), "residual": round(I_resid, 3)},
+    "phi_2005_2015": round(float(phi.loc["2005", "2015"]), 2),
+    "loeo": loeo,
+}
+out = ROOT / "backend/data/metrics.json"
+out.write_text(json.dumps(metrics, indent=1), encoding="utf-8")
+print(f"\nWrote {out.relative_to(ROOT)}")

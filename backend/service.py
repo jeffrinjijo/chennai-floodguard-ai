@@ -103,3 +103,63 @@ def rain_category(mm: float) -> dict:
 
 def count_flagged(cells: pd.DataFrame, mm: float) -> int:
     return int(cells["risk_class"].isin(rain_category(mm)["flagged_classes"]).sum())
+
+
+# ---------------- live rainfall outlook (external forecast, screening only) ----------------
+import json as _json
+import time as _time
+import urllib.parse as _urlparse
+import urllib.request as _urlreq
+
+OUTLOOK_LAT, OUTLOOK_LON = 13.08, 80.27             # central Chennai
+OUTLOOK_TTL_S = 30 * 60
+OUTLOOK_SOURCE = "Open-Meteo forecast API (daily precipitation sum, local time Asia/Kolkata)"
+OUTLOOK_NOTE = ("Gridded model forecasts tend to smooth out extreme local downpours, so a modest number here does not "
+                "rule out heavy rain. Use IMD and the Greater Chennai Corporation for official warnings.")
+_outlook_cache: dict = {"t": 0.0, "data": None}
+
+
+def _open_meteo_url(days: int = 3) -> str:
+    q = {"latitude": OUTLOOK_LAT, "longitude": OUTLOOK_LON, "daily": "precipitation_sum",
+         "forecast_days": days, "timezone": "Asia/Kolkata"}
+    return "https://api.open-meteo.com/v1/forecast?" + _urlparse.urlencode(q)
+
+
+def parse_outlook(payload: dict) -> list[dict]:
+    """Turn an Open-Meteo daily payload into per-day screening results. Missing/null values are skipped."""
+    daily = payload.get("daily") or {}
+    dates, rain = daily.get("time") or [], daily.get("precipitation_sum") or []
+    out = []
+    for d, mm in zip(dates, rain):
+        if mm is None:
+            continue
+        mm = round(float(mm), 1)
+        out.append({"date": d, "rain_mm_24h": mm, **rain_category(mm)})
+    return out
+
+
+def fetch_outlook(http_get=None, now=None) -> dict:
+    """Cached 3-day outlook. `http_get(url) -> dict` is injectable for tests. Raises on network failure."""
+    now = _time.time() if now is None else now
+    if _outlook_cache["data"] is not None and now - _outlook_cache["t"] < OUTLOOK_TTL_S:
+        return _outlook_cache["data"]
+    if http_get is None:
+        def http_get(url):
+            with _urlreq.urlopen(url, timeout=8) as r:          # noqa: S310 - fixed https URL built above
+                return _json.loads(r.read().decode("utf-8"))
+    days = parse_outlook(http_get(_open_meteo_url()))
+    if not days:
+        raise ValueError("forecast service returned no usable days")
+    data = {"days": days, "peak": max(days, key=lambda d: d["rain_mm_24h"]),
+            "source": OUTLOOK_SOURCE, "note": OUTLOOK_NOTE, "location": "central Chennai",
+            "fetched_at_utc": _time.strftime("%Y-%m-%dT%H:%M:%SZ", _time.gmtime(now))}
+    _outlook_cache.update(t=now, data=data)
+    return data
+
+
+def load_metrics(path) -> dict:
+    """Measured validation numbers written by scripts/06_scientific_analysis.py (empty dict if not generated yet)."""
+    try:
+        return _json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}

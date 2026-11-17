@@ -1,0 +1,149 @@
+{
+ "labelled_cells": 721,
+ "recurrent_cells": 281,
+ "never_cells": 440,
+ "ambiguous_cells": 1209,
+ "land_cells": 1930,
+ "blocks": 25,
+ "prevalence": 0.39,
+ "roc_auc": {
+  "xgb": 0.813,
+  "xgb_ci": [
+   0.761,
+   0.865
+  ],
+  "elev": 0.713,
+  "elev_ci": [
+   0.596,
+   0.804
+  ],
+  "gain": 0.103,
+  "gain_ci": [
+   0.029,
+   0.199
+  ]
+ },
+ "pr_auc": {
+  "xgb": 0.747,
+  "elev": 0.506
+ },
+ "class_rates": [
+  {
+   "risk_class": 1,
+   "n": 223,
+   "recurrent": 21,
+   "rate": 0.094
+  },
+  {
+   "risk_class": 2,
+   "n": 117,
+   "recurrent": 36,
+   "rate": 0.308
+  },
+  {
+   "risk_class": 3,
+   "n": 113,
+   "recurrent": 46,
+   "rate": 0.407
+  },
+  {
+   "risk_class": 4,
+   "n": 113,
+   "recurrent": 56,
+   "rate": 0.496
+  },
+  {
+   "risk_class": 5,
+   "n": 155,
+   "recurrent": 122,
+   "rate": 0.787
+  }
+ ],
+ "budget": [
+  {
+   "share": 0.1,
+   "precision": 0.889,
+   "recall": 0.228,
+   "lift": 2.28
+  },
+  {
+   "share": 0.2,
+   "precision": 0.792,
+   "recall": 0.406,
+   "lift": 2.03
+  },
+  {
+   "share": 0.3,
+   "precision": 0.699,
+   "recall": 0.537,
+   "lift": 1.79
+  },
+  {
+   "share": 0.4,
+   "precision": 0.66,
+   "recall": 0.676,
+   "lift": 1.69
+  },
+  {
+   "share": 0.5,
+   "precision": 0.608,
+   "recall": 0.779,
+   "lift": 1.56
+  }
+ ],
+ "mean_score_by_events": {
+  "0": 0.282,
+  "1": 0.484,
+  "2": 0.631,
+  "3": 0.602
+ },
+ "moran": {
+  "label": 0.5,
+  "residual": 0.327
+ },
+ "phi_2005_2015": -0.22,
+ "loeo": [
+  {
+   "event": "2005",
+   "model": "Elevation only (LR)",
+   "prevalence": 0.32,
+   "roc_auc": 0.7,
+   "pr_auc": 0.48
+  },
+  {
+   "event": "2005",
+   "model": "XGBoost",
+   "prevalence": 0.32,
+   "roc_auc": 0.34,
+   "pr_auc": 0.23
+  },
+  {
+   "event": "2015",
+   "model": "Elevation only (LR)",
+   "prevalence": 0.59,
+   "roc_auc": 0.51,
+   "pr_auc": 0.56
+  },
+  {
+   "event": "2015",
+   "model": "XGBoost",
+   "prevalence": 0.59,
+   "roc_auc": 0.37,
+   "pr_auc": 0.53
+  },
+  {
+   "event": "2020",
+   "model": "Elevation only (LR)",
+   "prevalence": 0.02,
+   "roc_auc": 0.64,
+   "pr_auc": 0.03
+  },
+  {
+   "event": "2020",
+   "model": "XGBoost",
+   "prevalence": 0.02,
+   "roc_auc": 0.58,
+   "pr_auc": 0.03
+  }
+ ]
+}

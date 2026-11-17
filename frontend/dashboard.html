@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Chennai FloodGuard AI - Dashboard</title>
+<style>
+:root{--bg:#060a16;--panel:#0b1226;--panel2:#0f1830;--line:rgba(88,196,255,.22);--cy:#4fd1ff;--teal:#2ee6a6;--amber:#ffb547;--red:#ff5d73;--tx:#e8f1ff;--mut:#8ea3c4}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(1200px 600px at 70% -10%,#10234a 0,transparent 60%),var(--bg);color:var(--tx);font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+a{color:var(--cy);text-decoration:none}
+.wrap{max-width:1440px;margin:0 auto;padding:18px 22px 70px}
+header{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:16px}
+header h1{font-size:20px;margin:0;letter-spacing:.2px}
+header h1 span{color:var(--cy)}
+.chip{border:1px solid var(--line);border-radius:999px;padding:3px 11px;font-size:12px;color:var(--mut);background:rgba(15,24,48,.7)}
+.chip.warn{color:var(--amber);border-color:rgba(255,181,71,.4)}
+.sp{flex:1}
+.grid{display:grid;grid-template-columns:300px 1fr 330px;gap:14px}
+.grid2{display:grid;grid-template-columns:1.1fr 1fr 1fr;gap:14px;margin-top:14px}
+@media(max-width:1100px){.grid,.grid2{grid-template-columns:1fr}}
+.card{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:14px;padding:14px 16px;position:relative;box-shadow:0 0 0 1px rgba(79,209,255,.05) inset,0 10px 40px rgba(0,0,0,.35)}
+.card h2{margin:0 0 8px;font-size:12px;letter-spacing:.9px;text-transform:uppercase;color:var(--mut);font-weight:600}
+.col{display:flex;flex-direction:column;gap:14px}
+.kpi .v{font-size:34px;font-weight:700;letter-spacing:-.5px}
+.kpi .s{color:var(--mut);font-size:12px}
+.row{display:flex;align-items:center;gap:14px}
+.ring{width:96px;height:96px;flex:none}
+.ring text{fill:var(--tx);font-weight:700}
+.hero{min-height:470px;overflow:hidden;display:flex;flex-direction:column}
+.hero svg.sky{width:100%;height:290px;display:block}
+.big{font-size:56px;font-weight:800;line-height:1;letter-spacing:-1px}
+.big small{font-size:18px;font-weight:500;color:var(--mut);margin-left:6px}
+.pill{display:inline-block;border-radius:999px;padding:3px 12px;font-size:12px;font-weight:700;letter-spacing:.6px;text-transform:uppercase}
+.days{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+.day,.sc{cursor:pointer;border:1px solid var(--line);background:rgba(11,18,38,.8);color:var(--tx);border-radius:10px;padding:8px 12px;font:inherit;text-align:left;min-width:104px}
+.day b{display:block;font-size:17px}
+.day small,.sc small{color:var(--mut)}
+.day.on,.sc.on{border-color:var(--cy);box-shadow:0 0 14px rgba(79,209,255,.35)}
+.sc{min-width:0;padding:6px 10px;font-size:12px}
+.note{color:var(--mut);font-size:12px;margin-top:8px}
+svg text{font-family:inherit}
+.lbl{fill:var(--mut);font-size:11px}
+.val{fill:var(--tx);font-size:12px;font-weight:600}
+.legend{display:flex;gap:14px;flex-wrap:wrap;color:var(--mut);font-size:12px;margin-top:6px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.honest{margin-top:14px;border-color:rgba(255,181,71,.35)}
+.honest ul{margin:6px 0 0;padding-left:18px;color:#d5def0}
+.honest li{margin:4px 0}
+.drop{animation:fall linear infinite}
+@keyframes fall{0%{transform:translateY(0);opacity:0}10%{opacity:.9}100%{transform:translateY(120px);opacity:0}}
+@keyframes drift{0%,100%{transform:translateX(-6px)}50%{transform:translateX(6px)}}
+.cloud{animation:drift 9s ease-in-out infinite}
+@media(prefers-reduced-motion:reduce){.drop,.cloud{animation:none}}
+footer{position:fixed;left:0;right:0;bottom:0;background:#0a1020;border-top:1px solid var(--line);padding:9px 14px;text-align:center;color:var(--mut);font-size:12px}
+</style></head><body>
+<div class="wrap">
+<header>
+ <h1>Chennai <span>FloodGuard AI</span> &middot; Dashboard</h1>
+ <span class="chip warn">Research prototype &middot; not a flood forecast or warning</span>
+ <span class="chip" id="stamp">loading&hellip;</span>
+ <span class="sp"></span>
+ <a class="chip" href="/">Open the map &rarr;</a>
+</header>
+
+<div class="grid">
+ <div class="col">
+  <div class="card kpi"><h2>Land cells analysed</h2><div class="v" id="k-cells">-</div><div class="s" id="k-cells-s">500 m grid, core Chennai</div></div>
+  <div class="card kpi"><h2>Recurrent-flood cells</h2><div class="v" id="k-rec">-</div><div class="s" id="k-rec-s">flooded in 2+ of 3 records</div></div>
+  <div class="card"><h2>Ranking skill (spatial CV)</h2>
+   <div class="row"><svg class="ring" id="g-auc" viewBox="0 0 100 100"></svg>
+    <div><div class="val" style="font-size:15px">ROC-AUC <span id="auc-v"></span></div><div class="note" id="auc-ci" style="margin:2px 0 0"></div><div class="note" id="auc-gain" style="margin:6px 0 0"></div></div></div>
+  </div>
+  <div class="card"><h2>Top 20% flagged</h2>
+   <div class="row"><svg class="ring" id="g-prec" viewBox="0 0 100 100"></svg>
+    <div><div class="val" style="font-size:15px">precision <span id="prec-v"></span></div><div class="note" id="prec-s" style="margin:2px 0 0"></div></div></div>
+  </div>
+ </div>
+
+ <div class="card hero">
+  <h2>Rainfall screening &middot; central Chennai</h2>
+  <svg class="sky" id="sky" viewBox="0 0 640 290" preserveAspectRatio="xMidYMid meet" aria-label="Rain cloud whose rain intensity follows the selected rainfall">
+   <defs>
+    <radialGradient id="cg" cx="50%" cy="35%" r="70%"><stop offset="0" stop-color="#eaf3ff"/><stop offset=".55" stop-color="#8fa6c8"/><stop offset="1" stop-color="#3b4b6b"/></radialGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+   </defs>
+   <g class="cloud" filter="url(#glow)">
+    <ellipse cx="320" cy="92" rx="170" ry="52" fill="url(#cg)"/>
+    <circle cx="240" cy="78" r="52" fill="url(#cg)"/><circle cx="320" cy="56" r="62" fill="url(#cg)"/><circle cx="400" cy="76" r="50" fill="url(#cg)"/>
+    <ellipse cx="320" cy="110" rx="150" ry="26" fill="#2f3d5c" opacity=".55"/>
+   </g>
+   <g id="drops"></g>
+   <line x1="40" y1="262" x2="600" y2="262" stroke="#4fd1ff" stroke-opacity=".35"/>
+   <text x="40" y="280" class="lbl" id="sky-cap"></text>
+  </svg>
+  <div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:10px">
+   <div><div class="big"><span id="mm">0</span><small>mm / 24 h</small></div></div>
+   <div style="text-align:right"><span class="pill" id="cat">-</span><div class="note" id="flag-s" style="margin-top:6px"></div></div>
+  </div>
+  <div class="days" id="days"></div>
+  <div class="days" id="scs" style="margin-top:8px"></div>
+  <div class="note" id="out-note">Select a day or a rainfall level. The rule flags more flood-proneness classes as 24 h rain passes the IMD heavy (64.5), very heavy (115.6) and extremely heavy (204.5) mm thresholds. It is a transparent screening rule, not a trained model.</div>
+ </div>
+
+ <div class="col">
+  <div class="card"><h2>Observed flood rate by risk class</h2><svg id="c-class" viewBox="0 0 300 200" width="100%"></svg>
+   <div class="note">Share of labelled cells that flooded in 2+ events. Dotted line = overall rate.</div></div>
+  <div class="card"><h2>Cells highlighted by this scenario</h2><svg id="c-flag" viewBox="0 0 300 150" width="100%"></svg></div>
+ </div>
+</div>
+
+<div class="grid2">
+ <div class="card"><h2>Biggest 3-day rain events on record</h2><svg id="c-ev" viewBox="0 0 440 250" width="100%"></svg>
+  <div class="legend"><span><i style="background:#4fd1ff"></i>wettest single day (mm)</span><span><i style="background:#ffb547;height:2px;vertical-align:3px"></i>IMD category thresholds</span></div>
+  <div class="note" id="ev-note"></div></div>
+ <div class="card"><h2>Does a model trained on other events transfer?</h2><svg id="c-loeo" viewBox="0 0 330 230" width="100%"></svg>
+  <div class="legend"><span><i style="background:#8ea3c4"></i>elevation only</span><span><i style="background:#4fd1ff"></i>XGBoost (above 0.5) </span><span><i style="background:#ff5d73"></i>below chance</span></div>
+  <div class="note">ROC-AUC when each flood event is held out. 0.5 = no skill.</div></div>
+ <div class="card"><h2>Score vs number of events recorded</h2><svg id="c-mono" viewBox="0 0 300 200" width="100%"></svg>
+  <div class="note" id="mono-note">Cells flooded once were never used for training.</div></div>
+</div>
+
+<div class="card honest"><h2 style="color:var(--amber)">Read this before using the numbers</h2>
+ <ul>
+  <li>The score ranks areas by <b>recurrent flood-proneness in past records</b>. It is not a probability and not a warning.</li>
+  <li>Models trained on other events score <b>below chance</b> on 2005 and 2015, so the map describes the pooled history, not any single storm.</li>
+  <li>Forecast rain comes from a public weather model that smooths extremes. Official alerts: IMD and the Greater Chennai Corporation.</li>
+ </ul></div>
+</div>
+<footer>Experimental research demo from public historical data. Not a flood forecast or warning.</footer>
+
+<script>
+const COL={1:"#ffffb2",2:"#fecc5c",3:"#fd8d3c",4:"#e31a1c",5:"#800026"};
+const NAME={1:"very low",2:"low",3:"moderate",4:"high",5:"very high"};
+const CATCOL={"below heavy":"#2ee6a6","heavy":"#ffb547","very heavy":"#ff8a47","extremely heavy":"#ff5d73"};
+const NS="http://www.w3.org/2000/svg";
+const $=id=>document.getElementById(id);
+const fmt=n=>Number(n).toLocaleString("en-IN");
+function el(tag,attrs,parent,text){const e=document.createElementNS(NS,tag);for(const k in attrs)e.setAttribute(k,attrs[k]);if(text!=null)e.textContent=text;if(parent)parent.appendChild(e);return e}
+function clear(svg){while(svg.firstChild)svg.removeChild(svg.firstChild)}
+
+function ring(svg,frac,color,label){
+  clear(svg);const r=40,c=2*Math.PI*r;
+  el("circle",{cx:50,cy:50,r,fill:"none",stroke:"#1b2a4d","stroke-width":9},svg);
+  el("circle",{cx:50,cy:50,r,fill:"none",stroke:color,"stroke-width":9,"stroke-linecap":"round","stroke-dasharray":`${c*frac} ${c}`,transform:"rotate(-90 50 50)",style:"filter:drop-shadow(0 0 5px "+color+")"},svg);
+  el("text",{x:50,y:57,"text-anchor":"middle","font-size":20},svg,label);
+}
+
+// ---- rain cloud ----
+function drawRain(mm){
+  const g=$("drops");clear(g);
+  const inten=Math.min(mm/205,1), n=mm<=0?0:Math.round(8+inten*52);
+  const col=mm>=204.5?"#ff8aa0":mm>=115.6?"#7fdcff":"#4fd1ff";
+  for(let i=0;i<n;i++){
+    const x=190+((i*97)%260)+(i%3)*6, y0=122+((i*31)%24), len=10+inten*16, dur=(0.9-inten*0.45)+((i*13)%10)/25, delay=-((i*17)%20)/20*dur;
+    const d=el("line",{x1:x,y1:y0,x2:x-2,y2:y0+len,stroke:col,"stroke-width":1.5+inten*1.2,"stroke-linecap":"round",class:"drop",style:`animation-duration:${dur}s;animation-delay:${delay}s;opacity:.0`},g);
+  }
+  $("sky-cap").textContent=mm<=0?"No rain in the selected scenario":"Drop density follows the selected 24 h rainfall";
+}
+
+// ---- charts ----
+function barsClass(rates,prev){
+  const s=$("c-class");clear(s);const W=300,H=200,L=26,B=28,T=14,bw=36,gap=(W-L-10-5*bw)/4;
+  el("line",{x1:L,y1:H-B,x2:W-6,y2:H-B,stroke:"#26365e"},s);
+  rates.forEach((r,i)=>{const h=(H-B-T)*r.rate/0.9,x=L+i*(bw+gap),y=H-B-h;
+    el("rect",{x,y,width:bw,height:h,rx:4,fill:COL[r.risk_class],stroke:"#0b1226"},s);
+    el("text",{x:x+bw/2,y:y-4,"text-anchor":"middle",class:"val"},s,r.rate.toFixed(2));
+    el("text",{x:x+bw/2,y:H-B+13,"text-anchor":"middle",class:"lbl"},s,String(r.risk_class));
+    el("text",{x:x+bw/2,y:H-B+24,"text-anchor":"middle",class:"lbl"},s,"n="+r.n);});
+  const py=H-B-(H-B-T)*prev/0.9;
+  el("line",{x1:L,y1:py,x2:W-6,y2:py,stroke:"#8ea3c4","stroke-dasharray":"3 4"},s);
+  el("text",{x:L+2,y:py-4,class:"lbl"},s,"overall "+prev.toFixed(2));
+}
+function barsFlag(counts,flagged,total){
+  const s=$("c-flag");clear(s);const W=300,L=8,rowH=24;
+  const mx=Math.max(...Object.values(counts),1);
+  for(let k=5;k>=1;k--){const i=5-k,y=8+i*rowH,c=counts[k]||0,w=(W-110)*c/mx,on=flagged.has(k);
+    el("text",{x:L,y:y+13,class:"lbl"},s,NAME[k]);
+    const w2=(W-170)*c/mx;
+    el("rect",{x:78,y,width:w2,height:16,rx:3,fill:COL[k],opacity:flagged.size===0||on?1:.18},s);
+    el("text",{x:84+w2,y:y+12,class:"val"},s,fmt(c)+(on?"  flagged":""));}
+}
+function barsEvents(evs,pk){
+  const s=$("c-ev");clear(s);const W=440,H=250,L=38,B=44,T=10,mx=300,bw=54,gap=(W-L-10-evs.length*bw)/(evs.length-1||1);
+  [0,100,200,300].forEach(v=>{const y=H-B-(H-B-T)*v/mx;el("line",{x1:L,y1:y,x2:W-6,y2:y,stroke:"#18264a"},s);el("text",{x:L-6,y,"text-anchor":"end",class:"lbl",dy:4},s,String(v));});
+  [[64.5,"heavy"],[115.6,"very heavy"],[204.5,"extremely heavy"]].forEach(([v,n])=>{const y=H-B-(H-B-T)*v/mx;
+    el("line",{x1:L,y1:y,x2:W-6,y2:y,stroke:"#ffb547","stroke-dasharray":"4 3","stroke-opacity":.7},s);
+    el("text",{x:L+4,y:y-3,"text-anchor":"start",class:"lbl",style:"fill:#ffb547;paint-order:stroke;stroke:#0b1226;stroke-width:3px"},s,n+" "+v);});
+  evs.forEach((e,i)=>{const x=L+i*(bw+gap),h=(H-B-T)*e.rain_peak_day_mm/mx;
+    el("rect",{x,y:H-B-h,width:bw,height:h,rx:4,fill:"#4fd1ff",opacity:.9},s);
+    el("text",{x:x+bw/2,y:H-B-h-4,"text-anchor":"middle",class:"val"},s,String(e.rain_peak_day_mm));
+    el("text",{x:x+bw/2,y:H-B+13,"text-anchor":"middle",class:"lbl"},s,e.date.slice(0,4));
+    el("text",{x:x+bw/2,y:H-B+25,"text-anchor":"middle",class:"lbl"},s,e.rain_72h_mm+" mm/3d");});
+}
+function barsLoeo(loeo){
+  const s=$("c-loeo");clear(s);const W=330,L=50,rowH=62,mx=1,sx=v=>L+(W-L-14)*v/mx;
+  [0,.5,1].forEach(v=>{el("line",{x1:sx(v),y1:6,x2:sx(v),y2:200,stroke:v===.5?"#8ea3c4":"#18264a","stroke-dasharray":v===.5?"4 3":""},s);el("text",{x:sx(v),y:216,"text-anchor":"middle",class:"lbl"},s,v.toFixed(1));});
+  ["2005","2015","2020"].forEach((ev,i)=>{const y=10+i*rowH;
+    el("text",{x:L-8,y:y+34,"text-anchor":"end",class:"val"},s,ev);
+    [["Elevation only (LR)","#8ea3c4"],["XGBoost",null]].forEach(([m,c],j)=>{
+      const r=loeo.find(x=>x.event===ev&&x.model===m); if(!r)return;
+      const col=c||(r.roc_auc<0.5?"#ff5d73":"#4fd1ff");
+      el("rect",{x:L,y:y+j*22,width:sx(r.roc_auc)-L,height:16,rx:3,fill:col},s);
+      el("text",{x:sx(r.roc_auc)+4,y:y+j*22+12,class:"val"},s,r.roc_auc.toFixed(2));});});
+}
+function barsMono(m){
+  const s=$("c-mono");clear(s);const W=300,H=200,L=26,B=40,T=14,keys=["0","1","2","3"],bw=48,gap=(W-L-10-4*bw)/3;
+  const cols={"0":"#6fa8dc","1":"#fdbb84","2":"#e34a33","3":"#b30000"};
+  el("line",{x1:L,y1:H-B,x2:W-6,y2:H-B,stroke:"#26365e"},s);
+  keys.forEach((k,i)=>{const v=m[k]; if(v==null)return;const h=(H-B-T)*v/0.8,x=L+i*(bw+gap);
+    el("rect",{x,y:H-B-h,width:bw,height:h,rx:4,fill:cols[k]},s);
+    el("text",{x:x+bw/2,y:H-B-h-4,"text-anchor":"middle",class:"val"},s,v.toFixed(2));
+    el("text",{x:x+bw/2,y:H-B+14,"text-anchor":"middle",class:"lbl"},s,k+(k==="3"?"+":""));});
+  el("text",{x:W/2,y:H-6,"text-anchor":"middle",class:"lbl"},s,"events recorded in the cell");
+}
+
+// ---- state ----
+let STATS=null, selected=null;
+async function applyMm(mm,tag){
+  $("mm").textContent=Math.round(mm*10)/10; drawRain(mm);
+  document.querySelectorAll(".day,.sc").forEach(b=>b.classList.toggle("on",b.dataset.tag===tag));
+  try{
+    const d=await (await fetch(`/scenario?rain_mm_24h=${mm}`)).json();
+    const c=$("cat");c.textContent=d.category;c.style.background=(CATCOL[d.category]||"#2ee6a6")+"33";c.style.color=CATCOL[d.category]||"#2ee6a6";c.style.border="1px solid "+(CATCOL[d.category]||"#2ee6a6");
+    $("flag-s").textContent=d.flagged_classes.length?`${fmt(d.flagged_cells)} of ${fmt(d.total_cells)} cells in the ${d.flagged_classes.map(k=>NAME[k]).join(" / ")} classes are worth watching`:"Below IMD 'heavy' (64.5 mm): this rule highlights no zones";
+    if(STATS)barsFlag(STATS.risk_class_counts,new Set(d.flagged_classes),d.total_cells);
+  }catch(e){}
+}
+
+async function init(){
+  let stats=null,out=null,ref=null;
+  try{stats=await (await fetch("/stats")).json()}catch(e){}
+  try{const r=await fetch("/outlook"); if(r.ok) out=await r.json()}catch(e){}
+  try{ref=await (await fetch("/rain-reference")).json()}catch(e){}
+  STATS=stats;
+  const m=(stats&&stats.metrics)||{};
+  if(stats){
+    $("k-cells").textContent=fmt(stats.cells);
+    if(m.recurrent_cells!=null){$("k-rec").textContent=fmt(m.recurrent_cells);$("k-rec-s").textContent=`of ${fmt(m.labelled_cells)} labelled cells (${fmt(m.never_cells)} never recorded; ${fmt(m.ambiguous_cells)} flooded once, excluded)`}
+    if(m.roc_auc){
+      ring($("g-auc"),m.roc_auc.xgb,"#4fd1ff",m.roc_auc.xgb.toFixed(2));
+      $("auc-v").textContent=m.roc_auc.xgb.toFixed(2);
+      $("auc-ci").textContent=`95% interval ${m.roc_auc.xgb_ci[0].toFixed(2)} to ${m.roc_auc.xgb_ci[1].toFixed(2)} (block bootstrap, ${m.blocks} blocks)`;
+      $("auc-gain").textContent=`Elevation alone: ${m.roc_auc.elev.toFixed(2)}. Gain +${m.roc_auc.gain.toFixed(2)} [${m.roc_auc.gain_ci[0].toFixed(2)}, ${m.roc_auc.gain_ci[1].toFixed(2)}]`;
+    }
+    if(m.budget){const b=m.budget.find(x=>Math.abs(x.share-0.2)<1e-6);
+      if(b){ring($("g-prec"),b.precision,"#2ee6a6",b.precision.toFixed(2));$("prec-v").textContent=b.precision.toFixed(2);$("prec-s").textContent=`recall ${b.recall.toFixed(2)}, ${b.lift.toFixed(1)}x enrichment vs chance`;}}
+    if(m.class_rates)barsClass(m.class_rates,m.prevalence);
+    if(m.loeo)barsLoeo(m.loeo);
+    if(m.mean_score_by_events)barsMono(m.mean_score_by_events);
+    barsFlag(stats.risk_class_counts,new Set(),stats.cells);
+  }
+  if(ref){barsEvents(ref.events,ref);$("ev-note").textContent=ref.note}
+  // day cards from the live forecast
+  const days=$("days");
+  if(out){
+    $("stamp").textContent="live forecast fetched "+out.fetched_at_utc.replace("T"," ").replace("Z"," UTC");
+    out.days.forEach((d,i)=>{const b=document.createElement("button");b.className="day";b.dataset.tag="d"+i;
+      b.innerHTML=`<small>${d.date.slice(5)}</small><b>${d.rain_mm_24h} mm</b><small>${d.category}</small>`;
+      b.addEventListener("click",()=>applyMm(d.rain_mm_24h,"d"+i));days.appendChild(b);});
+  }else{
+    $("stamp").textContent="forecast unavailable - scenarios only";
+    days.innerHTML='<div class="note">Live forecast unavailable right now. Use the scenario buttons below.</div>';
+  }
+  const scs=$("scs");
+  [["Off",0],["Heavy 65",65],["Very heavy 120",120],["Extremely heavy 205",205],["2015 peak ~285",285]].forEach(([n,v])=>{
+    const b=document.createElement("button");b.className="sc";b.dataset.tag="s"+v;b.textContent=n;b.addEventListener("click",()=>applyMm(v,"s"+v));scs.appendChild(b)});
+  if(out){const i=out.days.findIndex(d=>d.date===out.peak.date);applyMm(out.peak.rain_mm_24h,"d"+i)}else applyMm(0,"s0");
+}
+init();
+</script></body></html>

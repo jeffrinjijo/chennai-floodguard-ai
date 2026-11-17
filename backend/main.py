@@ -66,3 +66,30 @@ def scenario(rain_mm_24h: float = Query(..., ge=0, le=1000)):
 @app.get("/rain-reference")
 def rain_reference():
     return {"events": service.RAIN_REFERENCE, "note": service.RAIN_REFERENCE_NOTE}
+
+
+@app.get("/outlook")
+def outlook():
+    """Next-3-day rainfall from a public forecast service, passed through the same screening rule."""
+    try:
+        data = service.fetch_outlook()
+    except Exception as e:                                       # network down, service changed, bad payload
+        raise HTTPException(status_code=503, detail=f"Rainfall outlook unavailable right now ({type(e).__name__}).")
+    for d in data["days"]:
+        d["flagged_cells"] = service.count_flagged(CELLS, d["rain_mm_24h"])
+    return {**data, "total_cells": len(CELLS), "method": service.SCREENING_METHOD, "disclaimer": service.DISCLAIMER}
+
+
+METRICS = service.load_metrics(DATA / "metrics.json")
+
+
+@app.get("/dashboard")
+def dashboard():
+    return FileResponse(ROOT / "frontend/dashboard.html")
+
+
+@app.get("/stats")
+def stats():
+    counts = CELLS["risk_class"].value_counts().sort_index()
+    return {"cells": len(CELLS), "risk_class_counts": {int(k): int(v) for k, v in counts.items()},
+            "metrics": METRICS, "disclaimer": service.DISCLAIMER}
