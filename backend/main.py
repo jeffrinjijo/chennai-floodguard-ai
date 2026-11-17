@@ -74,7 +74,7 @@ def outlook():
     try:
         data = service.fetch_outlook()
     except Exception as e:                                       # network down, service changed, bad payload
-        raise HTTPException(status_code=503, detail=f"Rainfall outlook unavailable right now ({type(e).__name__}).")
+        raise HTTPException(status_code=503, detail=f"Rainfall outlook unavailable right now ({type(e).__name__}: {e}).")
     for d in data["days"]:
         d["flagged_cells"] = service.count_flagged(CELLS, d["rain_mm_24h"])
     return {**data, "total_cells": len(CELLS), "method": service.SCREENING_METHOD, "disclaimer": service.DISCLAIMER}

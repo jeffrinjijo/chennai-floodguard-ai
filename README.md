@@ -2,7 +2,7 @@
 
 Geospatial machine learning that maps **recurrent flood-prone zones** in Chennai from public flood records, terrain and land cover, with an interactive map and API.
 
-> **Live demo:** `<ADD_LIVE_DEMO_URL>`
+> **Live demo:** [chennai-floodguard-ai.onrender.com](https://chennai-floodguard-ai.onrender.com)
 > **Not a forecast.** This is a research prototype built on historical data. It ranks areas by how often they flooded in the past. It does not predict upcoming floods and must not be used as a warning.
 
 ![Map demo](docs/demo.png)

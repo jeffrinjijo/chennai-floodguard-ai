@@ -108,6 +108,7 @@ def count_flagged(cells: pd.DataFrame, mm: float) -> int:
 # ---------------- live rainfall outlook (external forecast, screening only) ----------------
 import json as _json
 import time as _time
+import urllib.error as _urlerr
 import urllib.parse as _urlparse
 import urllib.request as _urlreq
 
@@ -139,19 +140,31 @@ def parse_outlook(payload: dict) -> list[dict]:
 
 
 def fetch_outlook(http_get=None, now=None) -> dict:
-    """Cached 3-day outlook. `http_get(url) -> dict` is injectable for tests. Raises on network failure."""
+    """Cached 3-day outlook. `http_get(url) -> dict` is injectable for tests.
+    On a failed refresh, the last good answer is returned (marked stale) instead of an error."""
     now = _time.time() if now is None else now
-    if _outlook_cache["data"] is not None and now - _outlook_cache["t"] < OUTLOOK_TTL_S:
-        return _outlook_cache["data"]
+    cached = _outlook_cache["data"]
+    if cached is not None and now - _outlook_cache["t"] < OUTLOOK_TTL_S:
+        return cached
     if http_get is None:
         def http_get(url):
-            with _urlreq.urlopen(url, timeout=8) as r:          # noqa: S310 - fixed https URL built above
-                return _json.loads(r.read().decode("utf-8"))
-    days = parse_outlook(http_get(_open_meteo_url()))
-    if not days:
-        raise ValueError("forecast service returned no usable days")
+            req = _urlreq.Request(url, headers={"User-Agent": "ChennaiFloodGuardAI/0.1 (research demo; github.com/jeffrinjijo/chennai-floodguard-ai)",
+                                                "Accept": "application/json"})
+            try:
+                with _urlreq.urlopen(req, timeout=10) as r:      # noqa: S310 - fixed https URL built above
+                    return _json.loads(r.read().decode("utf-8"))
+            except _urlerr.HTTPError as e:
+                raise RuntimeError(f"forecast service answered HTTP {e.code}") from e
+    try:
+        days = parse_outlook(http_get(_open_meteo_url()))
+        if not days:
+            raise ValueError("forecast service returned no usable days")
+    except Exception:
+        if cached is not None:
+            return {**cached, "stale": True}
+        raise
     data = {"days": days, "peak": max(days, key=lambda d: d["rain_mm_24h"]),
-            "source": OUTLOOK_SOURCE, "note": OUTLOOK_NOTE, "location": "central Chennai",
+            "source": OUTLOOK_SOURCE, "note": OUTLOOK_NOTE, "location": "central Chennai", "stale": False,
             "fetched_at_utc": _time.strftime("%Y-%m-%dT%H:%M:%SZ", _time.gmtime(now))}
     _outlook_cache.update(t=now, data=data)
     return data

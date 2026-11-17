@@ -93,3 +93,15 @@ def test_fetch_outlook_rejects_empty_payload():
     import pytest
     with pytest.raises(ValueError):
         service.fetch_outlook(http_get=lambda u: {"daily": {"time": [], "precipitation_sum": []}}, now=5.0)
+
+
+def test_fetch_outlook_serves_stale_copy_when_refresh_fails():
+    service._outlook_cache.update(t=0.0, data=None)
+    good = service.fetch_outlook(http_get=lambda u: MOCK, now=100.0)
+    def boom(u):
+        raise RuntimeError("forecast service answered HTTP 429")
+    stale = service.fetch_outlook(http_get=boom, now=100.0 + service.OUTLOOK_TTL_S + 5)
+    assert stale["stale"] is True and stale["peak"] == good["peak"]
+    service._outlook_cache.update(t=0.0, data=None)
+    with pytest.raises(RuntimeError):
+        service.fetch_outlook(http_get=boom, now=1.0)
