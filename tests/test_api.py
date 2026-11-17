@@ -35,3 +35,20 @@ def test_predict_outside_study_area_is_404():
 
 def test_predict_validates_input():
     assert client.get("/predict", params={"lat": 999, "lon": 80}).status_code == 422
+
+
+def test_scenario_levels():
+    assert client.get("/scenario", params={"rain_mm_24h": 0}).json()["flagged_cells"] == 0
+    d = client.get("/scenario", params={"rain_mm_24h": 285}).json()
+    assert d["category"] == "extremely heavy" and d["flagged_classes"] == [3, 4, 5]
+    assert d["flagged_cells"] > 0 and "Not a trained model" in d["method"]
+
+
+def test_scenario_validates_input():
+    assert client.get("/scenario", params={"rain_mm_24h": -5}).status_code == 422
+    assert client.get("/scenario", params={"rain_mm_24h": 5000}).status_code == 422
+
+
+def test_rain_reference():
+    d = client.get("/rain-reference").json()
+    assert len(d["events"]) == 4 and "approximate" in d["note"]

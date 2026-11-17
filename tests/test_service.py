@@ -37,3 +37,21 @@ def test_geojson_has_one_feature_per_cell_and_history(cells):
 
 def test_scores_are_between_0_and_1(cells):
     assert cells.score.between(0, 1).all()
+
+
+def test_rain_category_boundaries():
+    assert service.rain_category(0)["flagged_classes"] == []
+    assert service.rain_category(64.4)["category"] == "below heavy"
+    assert service.rain_category(64.5) == {"category": "heavy", "flagged_classes": [5]}
+    assert service.rain_category(115.6)["flagged_classes"] == [4, 5]
+    assert service.rain_category(285)["flagged_classes"] == [3, 4, 5]
+
+
+def test_flagged_count_grows_with_rain(cells):
+    counts = [service.count_flagged(cells, mm) for mm in (0, 70, 120, 250)]
+    assert counts == sorted(counts) and counts[0] == 0 and counts[-1] >= counts[1]
+
+
+def test_rain_reference_has_the_four_events():
+    assert len(service.RAIN_REFERENCE) == 4
+    assert all(e["rain_72h_mm"] > 250 for e in service.RAIN_REFERENCE)

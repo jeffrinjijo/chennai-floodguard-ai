@@ -53,3 +53,16 @@ def predict(lat: float = Query(..., ge=-90, le=90), lon: float = Query(..., ge=-
 @app.get("/")
 def index():
     return FileResponse(ROOT / "frontend/index.html")
+
+
+@app.get("/scenario")
+def scenario(rain_mm_24h: float = Query(..., ge=0, le=1000)):
+    c = service.rain_category(rain_mm_24h)
+    return {"rain_mm_24h": rain_mm_24h, **c,
+            "flagged_cells": service.count_flagged(CELLS, rain_mm_24h), "total_cells": len(CELLS),
+            "method": service.SCREENING_METHOD, "disclaimer": service.DISCLAIMER}
+
+
+@app.get("/rain-reference")
+def rain_reference():
+    return {"events": service.RAIN_REFERENCE, "note": service.RAIN_REFERENCE_NOTE}

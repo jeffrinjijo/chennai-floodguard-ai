@@ -12,6 +12,7 @@ Geospatial machine learning that maps **recurrent flood-prone zones** in Chennai
 - Builds a "recurrent flood-proneness" label from three flood records (2005, 2015, 2020).
 - Trains and compares four models with **spatial block cross-validation** and explains the best with SHAP.
 - Serves scores and the main drivers per cell through a FastAPI service and a click-to-inspect map.
+- Includes a **rainfall scenario screen**: a slider on IMD 24 h rainfall categories (heavy 64.5, very heavy 115.6, extremely heavy 204.5 mm) that highlights which susceptibility classes to watch. It is a transparent threshold rule, not a trained rainfall-to-flood model, and is labelled as such in the app.
 
 ## Results
 Task: rank land cells by recurrent flood-proneness. Positive = flooded in 2+ events (281 cells), negative = never flooded in these records (440), flooded once = excluded as ambiguous. 5-fold spatial block CV on 5 km blocks. Chance PR-AUC = 0.39.
@@ -29,6 +30,24 @@ What this shows, and what it does not:
 - Random CV overstates skill (XGBoost 0.87 vs 0.81 spatial), which is why spatial CV is the headline.
 - **Cross-event transfer fails.** Multi-feature models trained on the other events score *below chance* on 2005 (ROC-AUC 0.34) and 2015 (0.37). Elevation alone transfers modestly (0.70 on 2005, 0.64 on 2020). The 2005 and 2015 flood footprints barely overlap, and the sources see different things (satellite water vs reported stagnation), so models learn each event's footprint.
 - Scores are a relative ranking, not flood probabilities.
+
+### Uncertainty and validation (`scripts/06_scientific_analysis.py`)
+Intervals are 95% block-bootstrap (2,000 resamples of the 25 spatial blocks, not of cells).
+
+| Ranking | ROC-AUC | PR-AUC |
+|---|---|---|
+| XGBoost, out-of-fold | 0.81 [0.76, 0.86] | 0.75 [0.62, 0.85] |
+| Elevation rule (lower = riskier) | 0.71 [0.60, 0.80] | 0.51 [0.41, 0.64] |
+
+- Paired ROC-AUC gain over elevation: **+0.10 [+0.03, +0.20]**. The interval excludes zero, but the lower end is small.
+- **Calibration of the ranking:** the observed recurrent-flood rate rises monotonically with risk class: 0.09, 0.31, 0.41, 0.50, 0.79 for classes 1 to 5 (prevalence 0.39). Very-high cells are 2.0x enriched.
+- **Budget view:** flagging the top 20% of labelled cells gives precision 0.79 and recall 0.41.
+- **Unseen-class check:** cells flooded in exactly one event, never used for training, score between the two labelled classes (mean score 0.28 never, 0.48 once, 0.63 twice).
+- **Spatial autocorrelation (Moran's I):** labels 0.50, residuals 0.33 (both p = 0.001). Neighbouring cells are not independent, which is why spatial CV is the headline, and the remaining residual structure shows what terrain and land cover cannot explain (drainage, drain capacity).
+- **Record agreement:** the 2005 and 2015 footprints are negatively correlated (phi -0.22, Jaccard 0.18), which caps what any model can learn from them.
+
+![ROC and precision with bootstrap band](reports/figures/roc_pr_bootstrap.png)
+![Enrichment by risk class](reports/figures/enrichment.png)
 
 ![Susceptibility map](reports/figures/susceptibility_map.png)
 ![SHAP summary](reports/figures/shap_summary.png)
@@ -55,6 +74,7 @@ flowchart LR
 | 3 | `scripts/03_extract_features.py` | features, land mask, single-feature signal check |
 | 4 | `scripts/04_train_models.py` | models, spatial CV, SHAP, map, `reports/model_report.md` |
 | 5 | `scripts/05_export_api_data.py` | self-contained data for the API |
+| 6 | `scripts/06_scientific_analysis.py` | bootstrap intervals, enrichment, Moran's I, record agreement in `reports/scientific_analysis.md` |
 
 ## Run it
 ```bash
@@ -62,7 +82,7 @@ python3.12 -m venv .venv && source .venv/bin/activate
 pip install --only-binary=:all: -r requirements.txt
 
 # download flood KMLs and the rainfall CSV into data/raw/ (see data/README.md), then:
-for s in 00_fetch_terrain_landcover 01_inventory 02_build_grid_labels 03_extract_features 04_train_models 05_export_api_data; do
+for s in 00_fetch_terrain_landcover 01_inventory 02_build_grid_labels 03_extract_features 04_train_models 05_export_api_data 06_scientific_analysis; do
   python scripts/$s.py || break
 done
 
@@ -71,7 +91,12 @@ uvicorn backend.main:app --reload          # http://127.0.0.1:8000
 ```
 Docker: `docker build -t floodguard . && docker run -p 8000:8000 floodguard`
 
-API: `GET /predict?lat=13.07&lon=80.26` returns score, risk class, past flood events and the five main drivers. `GET /cells.geojson`, `GET /health`.
+API: `GET /predict?lat=13.07&lon=80.26` returns score, risk class, past flood events and the five main drivers. `GET /scenario?rain_mm_24h=120` returns the category and flagged classes; `GET /rain-reference` lists past event rainfall. Also `GET /cells.geojson`, `GET /health`.
+
+## Documentation
+- [`docs/METHODOLOGY.md`](docs/METHODOLOGY.md): study design, label construction, features, validation, threats to validity.
+- [`MODEL_CARD.md`](MODEL_CARD.md): intended use, performance with intervals, failure modes.
+- `reports/model_report.md`, `reports/scientific_analysis.md`, `reports/label_summary.md`, `reports/feature_summary.md`: generated outputs.
 
 ## Limitations
 - Only three flood events with spatial labels, 721 usable cells. Results are a prototype, not a validated hazard model.
@@ -83,7 +108,7 @@ API: `GET /predict?lat=13.07&lon=80.26` returns score, risk class, past flood ev
 - Coastal cells contain zero-elevation sea pixels, so `elev_min` partly acts as a coastline flag. Its SHAP direction (a low `elev_min` lowers the score) reflects that artefact, not a physical effect.
 
 ## Next steps
-Flow accumulation and height-above-drainage features, a drainage map, calibrated uncertainty per cell, more flood events, and rainfall scenarios once event labels are consistent.
+Flow accumulation and height-above-drainage features, a drainage map, calibrated uncertainty per cell, more flood events, and a trained rainfall-to-flood model once event labels are consistent, and a live rainfall outlook feeding the scenario screen.
 
 ## Data and credits
 - Flood extents, stagnation points, hotspots and daily rainfall: Greater Chennai Corporation / TNDMA, via [OpenCity](https://data.opencity.in) (public domain).

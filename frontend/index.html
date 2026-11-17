@@ -10,18 +10,30 @@
  #info{top:12px;right:12px;width:310px;max-height:75vh;overflow:auto}
  #title{top:12px;left:56px;max-width:330px}
  #legend{bottom:48px;left:12px}
+ #scen{bottom:48px;left:300px;width:400px}
  #warn{bottom:0;left:0;right:0;border-radius:0;font-size:12px;text-align:center;background:#fff8e1}
+ @media (max-width:900px){#scen{left:12px;bottom:230px;width:calc(100% - 50px)}}
  .sw{display:inline-block;width:14px;height:14px;margin-right:6px;vertical-align:middle;border-radius:2px}
  h1{font-size:17px;margin:0 0 4px} small{color:#555}
  .bar{height:8px;border-radius:4px;background:#ddd;margin:2px 0 8px}
  .bar i{display:block;height:100%;border-radius:4px}
+ #scen input[type=range]{width:100%} #scen button{margin:2px 2px 0 0;padding:3px 8px;border:1px solid #bbb;border-radius:6px;background:#f6f6f6;cursor:pointer;font-size:12px}
+ #scen button:hover{background:#e8e8e8}
 </style></head><body>
 <div id="map"></div>
 <div class="panel" id="title"><h1>Chennai FloodGuard AI</h1>
  <small>Recurrent flood-prone zones from 2005 / 2015 / 2020 flood records, terrain and land cover. Click a cell.</small></div>
 <div class="panel" id="info"><b>Click a cell</b><br><small>to see its score, flood history and main drivers.</small></div>
 <div class="panel" id="legend"><b>Relative flood-proneness</b><br></div>
-<div class="panel" id="warn">Experimental research demo from public historical data. Not a flood forecast or warning.</div>
+<div class="panel" id="scen">
+ <b>Rainfall scenario</b> <small>(screening, not a forecast)</small><br>
+ 24 h rainfall: <b><span id="mm">0</span> mm</b>
+ <input id="rain" type="range" min="0" max="300" step="5" value="0">
+ <div><button data-mm="0">Off</button><button data-mm="65">Heavy 65</button><button data-mm="120">Very heavy 120</button><button data-mm="205">Extremely heavy 205</button><button data-mm="285">2015 peak ~285</button></div>
+ <div id="scen-out" style="margin-top:6px"><small>Move the slider to highlight the zones worth watching.</small></div>
+ <div id="ref" style="margin-top:6px"></div>
+</div>
+<div class="panel" id="warn">Experimental research demo from public historical data. Not a flood forecast or warning. Check IMD / Greater Chennai Corporation for official alerts.</div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 const COL={1:"#ffffb2",2:"#fecc5c",3:"#fd8d3c",4:"#e31a1c",5:"#800026"};
@@ -29,9 +41,16 @@ const NAME={1:"very low",2:"low",3:"moderate",4:"high",5:"very high"};
 const map=L.map("map").setView([13.05,80.23],11);
 L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:18,attribution:"&copy; OpenStreetMap contributors"}).addTo(map);
 document.getElementById("legend").innerHTML+=[1,2,3,4,5].map(k=>`<div><span class="sw" style="background:${COL[k]}"></span>${NAME[k]}</div>`).join("");
-let sel=null;
+
+let layer=null, sel=null, flagged=null;   // flagged = Set of risk classes to highlight, or null when scenario is off
+function baseStyle(f){
+  const c=f.properties.risk_class;
+  if(flagged===null) return {fillColor:COL[c],fillOpacity:.6,color:"#333",weight:.2};
+  return flagged.has(c) ? {fillColor:COL[c],fillOpacity:.85,color:"#000",weight:.8}
+                        : {fillColor:"#bbb",fillOpacity:.12,color:"#999",weight:.1};
+}
 fetch("/cells.geojson").then(r=>r.json()).then(g=>{
- const layer=L.geoJSON(g,{style:f=>({fillColor:COL[f.properties.risk_class],fillOpacity:.6,color:"#333",weight:.2}),
+ layer=L.geoJSON(g,{style:baseStyle,
   onEachFeature:(f,l)=>l.on("click",async e=>{
     if(sel)layer.resetStyle(sel); sel=l; l.setStyle({color:"#000",weight:2});
     const c=e.latlng, el=document.getElementById("info");
@@ -48,5 +67,24 @@ fetch("/cells.geojson").then(r=>r.json()).then(g=>{
      +`<small>${d.drivers_note}</small>`;
   })}).addTo(map);
  map.fitBounds(layer.getBounds());
+});
+
+// ---- rainfall scenario ----
+const rain=document.getElementById("rain"), mmEl=document.getElementById("mm"), out=document.getElementById("scen-out");
+async function applyScenario(mm){
+  mmEl.textContent=mm; rain.value=mm;
+  const r=await fetch(`/scenario?rain_mm_24h=${mm}`); if(!r.ok) return;
+  const d=await r.json();
+  flagged = d.flagged_classes.length ? new Set(d.flagged_classes) : null;
+  if(layer){ sel=null; layer.setStyle(baseStyle); }
+  out.innerHTML = d.flagged_classes.length
+    ? `<b>${d.category}</b>: highlighting flood-proneness classes <b>${d.flagged_classes.map(c=>NAME[c]).join(", ")}</b> &mdash; ${d.flagged_cells} of ${d.total_cells} cells.<br><small>${d.method}</small>`
+    : `<small>${mm>0?"Below IMD 'heavy' (64.5 mm): no zones highlighted by this rule. ":""}Move the slider to highlight the zones worth watching.</small>`;
+}
+rain.addEventListener("input",()=>applyScenario(+rain.value));
+document.querySelectorAll("#scen button").forEach(b=>b.addEventListener("click",()=>applyScenario(+b.dataset.mm)));
+fetch("/rain-reference").then(r=>r.json()).then(d=>{
+  document.getElementById("ref").innerHTML="<small><b>Biggest 3-day rain events on record</b> (24 h peak): "+
+   d.events.map(e=>`${e.event.replace(/ \(.*\)/,"")} ${e.rain_72h_mm} mm (${e.rain_peak_day_mm})`).join(" &middot; ")+"<br>"+d.note+"</small>";
 });
 </script></body></html>

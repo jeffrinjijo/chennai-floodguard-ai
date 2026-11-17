@@ -69,3 +69,37 @@ def top_drivers(booster, row: pd.Series, feats: list[str], k: int = 5) -> list[d
     return [{"feature": feats[i], "value": round(float(row[feats[i]]), 3),
              "contribution": round(float(contrib[i]), 3),
              "effect": "raises score" if contrib[i] > 0 else "lowers score"} for i in order]
+
+
+# ---------------- rainfall scenario screening ----------------
+# IMD 24-hour rainfall categories (mm). This is a transparent screening RULE, not a trained model:
+# the heavier the rain, the more susceptibility classes are flagged as "worth watching".
+RAIN_LEVELS = [   # (lower bound mm in 24 h, category, flagged risk classes)
+    (204.5, "extremely heavy", [3, 4, 5]),
+    (115.6, "very heavy", [4, 5]),
+    (64.5, "heavy", [5]),
+    (0.0, "below heavy", []),
+]
+
+# Largest 3-day rainfall events in the station CSV (city-wide mean of the stations that reported).
+RAIN_REFERENCE = [
+    {"event": "Oct 2005 heavy rain", "date": "2005-10-28", "rain_72h_mm": 443, "rain_peak_day_mm": 238},
+    {"event": "Michaung (Dec 2023)", "date": "2023-12-05", "rain_72h_mm": 365, "rain_peak_day_mm": 167},
+    {"event": "Dec 2015 floods", "date": "2015-12-02", "rain_72h_mm": 342, "rain_peak_day_mm": 284},
+    {"event": "Nivar (Nov 2020)", "date": "2020-11-26", "rain_72h_mm": 306, "rain_peak_day_mm": 136},
+]
+RAIN_REFERENCE_NOTE = ("City-wide mean over the 5-35 stations that reported on those days; early coverage is sparse, "
+                       "so figures are approximate. Days missing from the source CSV were treated as no rain.")
+SCREENING_METHOD = ("Rule of thumb: heavier 24 h rainfall flags more of the flood-prone classes. "
+                    "Not a trained model and not a forecast. Check IMD and Greater Chennai Corporation for official warnings.")
+
+
+def rain_category(mm: float) -> dict:
+    for lo, name, classes in RAIN_LEVELS:
+        if mm >= lo:
+            return {"category": name, "flagged_classes": list(classes)}
+    return {"category": "below heavy", "flagged_classes": []}
+
+
+def count_flagged(cells: pd.DataFrame, mm: float) -> int:
+    return int(cells["risk_class"].isin(rain_category(mm)["flagged_classes"]).sum())
